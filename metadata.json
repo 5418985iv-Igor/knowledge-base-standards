@@ -1,0 +1,6 @@
+{
+  "name": "База знаний стандартов",
+  "description": "Корпоративный AI-ассистент для ответов по базе знаний стандартов компании на основе Google Таблицы и Gemini",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
