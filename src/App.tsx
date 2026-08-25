@@ -18,7 +18,14 @@ import {
 } from "lucide-react";
 
 const DEFAULT_SHEET_URL =
+  import.meta.env.VITE_DEFAULT_SHEET_URL ||
   "https://docs.google.com/spreadsheets/d/1Uf1g3BcPntwg2aPvzg4urTo4knwmxAAFvtlcxUA3BTc/edit?gid=0#gid=0";
+const DEFAULT_WEBHOOK_URL =
+  import.meta.env.VITE_GOOGLE_APPS_SCRIPT_WEBHOOK_URL || "";
+const ASSISTANT_NAME =
+  import.meta.env.VITE_ASSISTANT_NAME || "Крантик";
+const APP_TITLE =
+  import.meta.env.VITE_APP_TITLE || "База знаний стандартов компании";
 
 const STORAGE_SESSIONS_KEY = "company_standards_sessions_v1";
 const STORAGE_CURRENT_SESSION_KEY = "company_standards_current_session_v1";
@@ -61,7 +68,7 @@ export default function App() {
     } catch {}
     return {
       sheetUrl: DEFAULT_SHEET_URL,
-      webhookUrl: "",
+      webhookUrl: DEFAULT_WEBHOOK_URL,
     };
   });
 
@@ -348,8 +355,6 @@ export default function App() {
         onDeleteSession={handleDeleteSession}
         onTogglePinSession={handleTogglePinSession}
         onOpenKBModal={() => setIsKBModalOpen(true)}
-        onOpenLogsModal={() => setIsLogsModalOpen(true)}
-        onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
         kbStats={kbStats}
         kbLoading={kbLoading}
         onRefreshKB={() => fetchKnowledgeBase(true)}
@@ -367,8 +372,6 @@ export default function App() {
           kbLoading={kbLoading}
           onRefreshKB={() => fetchKnowledgeBase(true)}
           onOpenKBModal={() => setIsKBModalOpen(true)}
-          onOpenLogsModal={() => setIsLogsModalOpen(true)}
-          onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
         />
 
         {/* Chat Scroll Container */}
@@ -381,7 +384,7 @@ export default function App() {
               </div>
 
               <h2 className="text-2xl font-bold text-[#1e293b] tracking-tight mb-2">
-                База знаний стандартов компании
+                {APP_TITLE}
               </h2>
               <p className="text-sm text-[#475569] max-w-lg mb-8 leading-relaxed">
                 Задайте вопрос по регламентам, процедурам и стандартам компании.
@@ -422,7 +425,7 @@ export default function App() {
                     AI
                   </div>
                   <div className="flex-1 min-w-0 pt-1">
-                    <p className="font-semibold text-sm text-[#004b93] mb-2">Крантик</p>
+                    <p className="font-semibold text-sm text-[#004b93] mb-2">{ASSISTANT_NAME}</p>
                     <div className="border-l-[3px] border-[#004b93] pl-4 sm:pl-5 py-1 text-xs text-[#64748b] flex items-center gap-2.5">
                       <Loader2 className="w-4 h-4 animate-spin text-[#004b93]" />
                       <span>{loadingStatusText || "Поиск в регламентах и формулирование ответа..."}</span>

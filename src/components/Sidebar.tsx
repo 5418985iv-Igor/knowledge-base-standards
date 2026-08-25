@@ -3,8 +3,6 @@ import {
   MessageSquare,
   Plus,
   Trash2,
-  FileText,
-  Settings,
   Search,
   RefreshCw,
   Pin,
@@ -21,8 +19,6 @@ interface SidebarProps {
   onDeleteSession: (id: string, e: React.MouseEvent) => void;
   onTogglePinSession: (id: string, e: React.MouseEvent) => void;
   onOpenKBModal?: () => void;
-  onOpenLogsModal: () => void;
-  onOpenSettingsModal: () => void;
   kbStats: KnowledgeBaseStats | null;
   kbLoading: boolean;
   onRefreshKB: () => void;
@@ -37,9 +33,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNewChat,
   onDeleteSession,
   onTogglePinSession,
-  onOpenKBModal,
-  onOpenLogsModal,
-  onOpenSettingsModal,
   kbStats,
   kbLoading,
   onRefreshKB,
@@ -93,10 +86,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <div className="flex flex-col truncate">
               <span className="font-bold text-[#004b93] tracking-tight text-base truncate">
-                Ассистент Крантик
+                {import.meta.env.VITE_ASSISTANT_NAME || "Крантик"}
               </span>
               <span className="text-[11px] text-slate-500 font-medium truncate">
-                База знаний стандартов
+                {import.meta.env.VITE_APP_TITLE || "База знаний стандартов"}
               </span>
             </div>
           </div>
@@ -256,32 +249,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {kbStats ? `${kbStats.rowsCount} регламентов загружено` : "Синхронизация..."}
             </span>
           </div>
-        </div>
-
-        {/* Footer Navigation */}
-        <div className="p-3 border-t border-slate-100 space-y-0.5 text-xs">
-          <button
-            id="nav-logs-modal"
-            onClick={onOpenLogsModal}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition"
-          >
-            <FileText className="w-4 h-4 text-emerald-600" />
-            <div className="flex items-center justify-between flex-1">
-              <span>Логи запросов</span>
-              <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[10px] font-mono">
-                Sheets
-              </span>
-            </div>
-          </button>
-
-          <button
-            id="nav-settings-modal"
-            onClick={onOpenSettingsModal}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition"
-          >
-            <Settings className="w-4 h-4 text-slate-500" />
-            <span>Настройки подключения</span>
-          </button>
         </div>
       </aside>
     </>

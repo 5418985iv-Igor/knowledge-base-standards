@@ -2,9 +2,7 @@ import React from "react";
 import {
   Menu,
   Sparkles,
-  FileText,
   RefreshCw,
-  SlidersHorizontal,
 } from "lucide-react";
 import { KnowledgeBaseStats } from "../types";
 
@@ -14,9 +12,7 @@ interface HeaderProps {
   kbStats: KnowledgeBaseStats | null;
   kbLoading: boolean;
   onRefreshKB: () => void;
-  onOpenKBModal: () => void;
-  onOpenLogsModal: () => void;
-  onOpenSettingsModal: () => void;
+  onOpenKBModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -25,8 +21,6 @@ export const Header: React.FC<HeaderProps> = ({
   kbStats,
   kbLoading,
   onRefreshKB,
-  onOpenLogsModal,
-  onOpenSettingsModal,
 }) => {
   return (
     <header className="h-16 bg-white border-b border-slate-100 px-6 sm:px-8 flex items-center justify-between z-20 shrink-0 sticky top-0">
@@ -61,26 +55,6 @@ export const Header: React.FC<HeaderProps> = ({
           title="Синхронизировать базу знаний"
         >
           <RefreshCw className={`w-4 h-4 ${kbLoading ? "animate-spin text-[#004b93]" : ""}`} />
-        </button>
-
-        {/* Logs button */}
-        <button
-          id="btn-header-logs"
-          onClick={onOpenLogsModal}
-          className="p-2 rounded-md text-slate-400 hover:text-emerald-600 hover:bg-slate-100 transition"
-          title="Журнал запросов («Логи»)"
-        >
-          <FileText className="w-4 h-4 text-emerald-600" />
-        </button>
-
-        {/* Settings button */}
-        <button
-          id="btn-header-settings"
-          onClick={onOpenSettingsModal}
-          className="p-2 rounded-md text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition"
-          title="Настройки"
-        >
-          <SlidersHorizontal className="w-4 h-4" />
         </button>
       </div>
     </header>

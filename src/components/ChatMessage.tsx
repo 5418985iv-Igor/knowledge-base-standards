@@ -97,6 +97,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 
   const badge = getBadgeStyle();
 
+  const assistantName = import.meta.env.VITE_ASSISTANT_NAME || "Крантик";
+
   return (
     <div className="flex gap-4 sm:gap-5 px-6 sm:px-12 py-5 hover:bg-slate-50/50 transition-colors">
       {/* Assistant Avatar */}
@@ -108,7 +110,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       <div className="flex-1 min-w-0 pt-1">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <div className="flex items-center gap-2.5">
-            <p className="font-semibold text-sm text-[#004b93]">Крантик</p>
+            <p className="font-semibold text-sm text-[#004b93]">{assistantName}</p>
             {message.foundInKB && (
               <div
                 className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${badge.bg}`}

@@ -22,6 +22,8 @@ const ai = new GoogleGenAI({
 });
 
 const DEFAULT_SHEET_URL =
+  process.env.DEFAULT_SHEET_URL ||
+  process.env.VITE_DEFAULT_SHEET_URL ||
   "https://docs.google.com/spreadsheets/d/1Uf1g3BcPntwg2aPvzg4urTo4knwmxAAFvtlcxUA3BTc/edit?gid=0#gid=0";
 
 // System prompt as strictly specified by user
@@ -71,8 +73,9 @@ async function generateGeminiContentWithFallback(params: {
   systemInstruction: string;
   temperature?: number;
 }) {
+  const defaultModel = process.env.GEMINI_DEFAULT_MODEL || "gemini-3.7-flash";
   const modelsToTry = [
-    "gemini-3.7-flash",
+    defaultModel,
     "gemini-flash-latest",
     "gemini-3.1-flash-lite",
   ];
@@ -192,7 +195,10 @@ interface SheetDataCache {
 }
 
 let sheetCache: SheetDataCache | null = null;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minute cache, with background refresh
+const CACHE_TTL_MS =
+  (process.env.SHEET_CACHE_TTL_MS && !isNaN(Number(process.env.SHEET_CACHE_TTL_MS)))
+    ? Number(process.env.SHEET_CACHE_TTL_MS)
+    : 5 * 60 * 1000; // 5 minute cache, with background refresh
 
 // Parse CSV helper
 function parseCSV(text: string): { headers: string[]; rows: Record<string, string>[] } {
@@ -643,6 +649,20 @@ function doGet(e) {
 // API Routes
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
+});
+
+// App configuration and environment variables
+app.get("/api/config", (_req, res) => {
+  res.json({
+    defaultSheetUrl: DEFAULT_SHEET_URL,
+    defaultWebhookUrl:
+      process.env.GOOGLE_APPS_SCRIPT_WEBHOOK_URL ||
+      process.env.VITE_GOOGLE_APPS_SCRIPT_WEBHOOK_URL ||
+      "",
+    assistantName: process.env.VITE_ASSISTANT_NAME || "Крантик",
+    appTitle: process.env.VITE_APP_TITLE || "База знаний стандартов компании",
+    geminiModel: process.env.GEMINI_DEFAULT_MODEL || "gemini-3.7-flash",
+  });
 });
 
 // Get current knowledge base data

@@ -45,9 +45,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleResetDefaults = () => {
     const defaultSheet =
+      import.meta.env.VITE_DEFAULT_SHEET_URL ||
       "https://docs.google.com/spreadsheets/d/1Uf1g3BcPntwg2aPvzg4urTo4knwmxAAFvtlcxUA3BTc/edit?gid=0#gid=0";
     setSheetUrl(defaultSheet);
-    setWebhookUrl("");
+    setWebhookUrl(import.meta.env.VITE_GOOGLE_APPS_SCRIPT_WEBHOOK_URL || "");
   };
 
   return (
