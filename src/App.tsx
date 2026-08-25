@@ -11,6 +11,7 @@ import {
   ChatSession,
   KnowledgeBaseStats,
   AppSettings,
+  AIProvider,
 } from "./types";
 import {
   FileSpreadsheet,
@@ -30,8 +31,20 @@ const APP_TITLE =
 const STORAGE_SESSIONS_KEY = "company_standards_sessions_v1";
 const STORAGE_CURRENT_SESSION_KEY = "company_standards_current_session_v1";
 const STORAGE_SETTINGS_KEY = "company_standards_settings_v1";
+const STORAGE_PROVIDER_KEY = "company_standards_provider_v1";
 
 export default function App() {
+  // AI Provider State (OpenAI or Google Gemini) with localStorage persistence
+  const [provider, setProvider] = useState<AIProvider>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_PROVIDER_KEY);
+      if (saved === "openai" || saved === "gemini") {
+        return saved;
+      }
+    } catch {}
+    return "openai";
+  });
+
   // Chat Sessions State
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     try {
@@ -64,11 +77,18 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_SETTINGS_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          ...parsed,
+          provider: parsed.provider || "openai",
+        };
+      }
     } catch {}
     return {
       sheetUrl: DEFAULT_SHEET_URL,
       webhookUrl: DEFAULT_WEBHOOK_URL,
+      provider: "openai",
     };
   });
 
@@ -85,6 +105,13 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Sync provider to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_PROVIDER_KEY, provider);
+    } catch {}
+  }, [provider]);
 
   // Sync sessions to localStorage
   useEffect(() => {
@@ -212,6 +239,12 @@ export default function App() {
     setIsSettingsModalOpen(false);
   };
 
+  // Handle Provider Change
+  const handleSelectProvider = (newProvider: AIProvider) => {
+    setProvider(newProvider);
+    setSettings((prev) => ({ ...prev, provider: newProvider }));
+  };
+
   // Handle Send Message
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
@@ -246,13 +279,14 @@ export default function App() {
     );
 
     setIsLoading(true);
-    setLoadingStatusText("Поиск регламентов в базе знаний...");
+    const providerLabel = provider === "gemini" ? "Google Gemini" : "OpenAI";
+    setLoadingStatusText(`Поиск в регламентах (генерация через ${providerLabel})...`);
 
     // Rotate status text to provide clear visual feedback
     const statusSteps = [
-      "Поиск регламентов в базе знаний...",
-      "Анализ стандартов и требований компании...",
-      "Формулирование ответа по правилам...",
+      `Поиск регламентов в базе знаний...`,
+      `Анализ стандартов и требований компании...`,
+      `Формулирование ответа через ${providerLabel}...`,
     ];
     let stepIndex = 0;
     const statusInterval = setInterval(() => {
@@ -267,6 +301,7 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question: text,
+          provider: provider,
           history: messages.slice(-6).map((m) => ({
             role: m.role,
             content: m.content,
@@ -279,7 +314,7 @@ export default function App() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Не удалось получить ответ от ассистента");
+        throw new Error(data.error || `Не удалось получить ответ от ${providerLabel}`);
       }
 
       const assistantMessage: Message = {
@@ -294,6 +329,8 @@ export default function App() {
         foundInKB: data.foundInKB,
         durationSeconds: data.durationSeconds,
         logId: data.logId,
+        provider: data.provider || provider,
+        modelUsed: data.modelUsed,
       };
 
       setSessions((prev) =>
@@ -317,13 +354,14 @@ export default function App() {
       const errorMessage: Message = {
         id: `msg_err_${Date.now()}`,
         role: "assistant",
-        content: `⚠️ **Не удалось сформировать ответ:**\n\n${errorText}`,
+        content: `⚠️ **Не удалось сформировать ответ (${providerLabel}):**\n\n${errorText}`,
         timestamp: new Date().toLocaleTimeString("ru-RU", {
           hour: "2-digit",
           minute: "2-digit",
         }),
         foundInKB: "Нет",
         error: true,
+        provider: provider,
       };
 
       setSessions((prev) =>
@@ -372,6 +410,8 @@ export default function App() {
           kbLoading={kbLoading}
           onRefreshKB={() => fetchKnowledgeBase(true)}
           onOpenKBModal={() => setIsKBModalOpen(true)}
+          provider={provider}
+          onSelectProvider={handleSelectProvider}
         />
 
         {/* Chat Scroll Container */}
@@ -471,9 +511,12 @@ export default function App() {
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
-        settings={settings}
+        settings={{ ...settings, provider }}
         onSaveSettings={(newSettings) => {
           setSettings(newSettings);
+          if (newSettings.provider) {
+            setProvider(newSettings.provider);
+          }
           setIsSettingsModalOpen(false);
         }}
         onClearAllSessions={handleClearAllSessions}

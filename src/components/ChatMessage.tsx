@@ -148,6 +148,24 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
                   {message.durationSeconds}с
                 </span>
               )}
+              {message.provider && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-sm bg-slate-100 text-slate-600"
+                  title={message.modelUsed ? `Модель: ${message.modelUsed}` : undefined}
+                >
+                  {message.provider === "gemini" ? (
+                    <>
+                      <Sparkles className="w-2.5 h-2.5 text-[#004b93]" />
+                      <span>Gemini</span>
+                    </>
+                  ) : (
+                    <span>OpenAI</span>
+                  )}
+                  {message.modelUsed && message.modelUsed !== "direct-standards-kb" && (
+                    <span className="text-slate-400 font-mono text-[9px]">({message.modelUsed})</span>
+                  )}
+                </span>
+              )}
               <span className="text-[11px] text-[#94a3b8]">{message.timestamp}</span>
             </div>
 

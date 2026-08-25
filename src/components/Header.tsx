@@ -2,9 +2,10 @@ import React from "react";
 import {
   Menu,
   Sparkles,
+  Bot,
   RefreshCw,
 } from "lucide-react";
-import { KnowledgeBaseStats } from "../types";
+import { AIProvider, KnowledgeBaseStats } from "../types";
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -13,6 +14,8 @@ interface HeaderProps {
   kbLoading: boolean;
   onRefreshKB: () => void;
   onOpenKBModal?: () => void;
+  provider: AIProvider;
+  onSelectProvider: (provider: AIProvider) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -21,10 +24,12 @@ export const Header: React.FC<HeaderProps> = ({
   kbStats,
   kbLoading,
   onRefreshKB,
+  provider,
+  onSelectProvider,
 }) => {
   return (
-    <header className="h-16 bg-white border-b border-slate-100 px-6 sm:px-8 flex items-center justify-between z-20 shrink-0 sticky top-0">
-      <div className="flex items-center gap-3 truncate">
+    <header className="h-16 bg-white border-b border-slate-100 px-4 sm:px-8 flex items-center justify-between z-20 shrink-0 sticky top-0">
+      <div className="flex items-center gap-3 truncate min-w-0">
         <button
           id="btn-header-toggle-sidebar"
           onClick={onToggleSidebar}
@@ -34,18 +39,52 @@ export const Header: React.FC<HeaderProps> = ({
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-3 truncate">
-          <h1 className="font-semibold text-[#475569] text-sm sm:text-base tracking-tight truncate max-w-xs sm:max-w-md">
+        <div className="flex items-center gap-3 truncate min-w-0">
+          <h1 className="font-semibold text-[#475569] text-sm sm:text-base tracking-tight truncate max-w-[160px] xs:max-w-xs sm:max-w-md">
             {title && title !== "Новый диалог" ? title : "База знаний стандартов компании"}
           </h1>
-          <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#004b93]/10 text-[#004b93] shrink-0">
-            <Sparkles className="w-3 h-3 text-[#004b93]" />
-            OpenAI Model
-          </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* Model Selection Segmented Control */}
+        <div
+          id="model-selector-group"
+          className="inline-flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200/80 shadow-2xs"
+          role="group"
+          aria-label="Выбор AI модели"
+        >
+          <button
+            id="btn-model-openai"
+            type="button"
+            onClick={() => onSelectProvider("openai")}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+              provider === "openai"
+                ? "bg-white text-[#004b93] shadow-xs"
+                : "text-slate-500 hover:text-slate-800 hover:bg-white/50"
+            }`}
+            title="Использовать OpenAI для формирования ответа"
+          >
+            <Bot className="w-3.5 h-3.5 text-[#004b93]" />
+            <span>OpenAI</span>
+          </button>
+
+          <button
+            id="btn-model-gemini"
+            type="button"
+            onClick={() => onSelectProvider("gemini")}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+              provider === "gemini"
+                ? "bg-white text-[#004b93] shadow-xs"
+                : "text-slate-500 hover:text-slate-800 hover:bg-white/50"
+            }`}
+            title="Использовать Google Gemini API для формирования ответа"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-[#004b93]" />
+            <span>Gemini</span>
+          </button>
+        </div>
+
         {/* Sync button */}
         <button
           id="btn-header-refresh"

@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -10,6 +11,9 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+
+// Single default Gemini model definition
+const DEFAULT_GEMINI_MODEL = "gemini-3.7-flash";
 
 // Initialize OpenAI Client
 let openaiClient: OpenAI | null = null;
@@ -21,6 +25,23 @@ function getOpenAIClient(): OpenAI {
     });
   }
   return openaiClient;
+}
+
+// Initialize Google Gemini Client
+let geminiClient: GoogleGenAI | null = null;
+function getGeminiClient(): GoogleGenAI {
+  if (!geminiClient) {
+    const apiKey = process.env.GEMINI_API_KEY || "";
+    geminiClient = new GoogleGenAI({
+      apiKey: apiKey,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+  }
+  return geminiClient;
 }
 
 const DEFAULT_SHEET_URL =
@@ -149,6 +170,77 @@ async function generateOpenAIContentWithFallback(params: {
   }
 
   throw lastError;
+}
+
+// Generate Google Gemini content adhering to identical system instruction and knowledge base context
+async function generateGeminiContent(params: {
+  contents: string;
+  systemInstruction: string;
+  temperature?: number;
+}): Promise<{ text: string; modelUsed: string }> {
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+    throw new Error(
+      "API-ключ Google Gemini (GEMINI_API_KEY) не задан на сервере. Пожалуйста, укажите GEMINI_API_KEY в настройках окружения или панели Secrets."
+    );
+  }
+
+  const model = (process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL).trim() || DEFAULT_GEMINI_MODEL;
+  const client = getGeminiClient();
+
+  try {
+    const response = await client.models.generateContent({
+      model,
+      contents: params.contents,
+      config: {
+        systemInstruction: params.systemInstruction,
+        temperature: params.temperature ?? 0.2,
+      },
+    });
+
+    const text = response.text || "";
+    return { text, modelUsed: model };
+  } catch (err: any) {
+    const rawMsg = err?.message || String(err);
+    console.error(`[Gemini API Error] (${model}):`, rawMsg);
+
+    if (
+      rawMsg.includes("API key not valid") ||
+      rawMsg.includes("API_KEY_INVALID") ||
+      rawMsg.includes("INVALID_ARGUMENT") ||
+      rawMsg.includes("API key expired")
+    ) {
+      throw new Error(
+        "Недействительный ключ API Google Gemini. Проверьте правильность значения переменной GEMINI_API_KEY."
+      );
+    }
+    if (
+      rawMsg.includes("RESOURCE_EXHAUSTED") ||
+      rawMsg.includes("429") ||
+      rawMsg.toLowerCase().includes("quota")
+    ) {
+      throw new Error(
+        "Превышена квота запросов к Google Gemini API. Попробуйте повторить запрос позже или выберите другую модель."
+      );
+    }
+    if (rawMsg.includes("NOT_FOUND") || rawMsg.includes("models/")) {
+      throw new Error(
+        `Указанная модель Gemini «${model}» не найдена или недоступна. Проверьте значение переменной GEMINI_MODEL.`
+      );
+    }
+    if (
+      rawMsg.includes("fetch failed") ||
+      rawMsg.includes("ECONNREFUSED") ||
+      rawMsg.includes("ETIMEDOUT") ||
+      rawMsg.includes("ENOTFOUND")
+    ) {
+      throw new Error(
+        "Сервис Google Gemini API временно недоступен. Проверьте сетевое подключение."
+      );
+    }
+
+    throw new Error(`Ошибка Google Gemini API (${model}): ${rawMsg}`);
+  }
 }
 
 // Fallback search directly in corporate standards if AI endpoints are unreachable or API key is not configured.
@@ -771,6 +863,7 @@ app.get("/api/config", (_req, res) => {
     assistantName: process.env.VITE_ASSISTANT_NAME || "Крантик",
     appTitle: process.env.VITE_APP_TITLE || "База знаний стандартов компании",
     openaiModel: process.env.OPENAI_DEFAULT_MODEL || "gpt-5.6-luna",
+    geminiModel: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
   });
 });
 
@@ -953,15 +1046,23 @@ app.post("/api/logs/test-webhook", async (req, res) => {
   }
 });
 
-// Chat endpoint with OpenAI & Google Sheets RAG
+// Chat endpoint with OpenAI / Google Gemini & Google Sheets RAG
 app.post("/api/chat", async (req, res) => {
   const startTime = Date.now();
-  const { question, history = [], sheetUrl = DEFAULT_SHEET_URL, webhookUrl } = req.body;
+  const {
+    question,
+    history = [],
+    sheetUrl = DEFAULT_SHEET_URL,
+    webhookUrl,
+    provider = "openai",
+  } = req.body;
 
   if (!question || typeof question !== "string" || question.trim().length === 0) {
     res.status(400).json({ error: "Пожалуйста, введите вопрос" });
     return;
   }
+
+  const selectedProvider = provider === "gemini" ? "gemini" : "openai";
 
   try {
     // 1. Fetch latest Google Sheet data
@@ -1027,12 +1128,40 @@ ${question}
 }
 </meta>`;
 
-    // 4. Generate response from OpenAI with automatic retry & fallback
-    const { text: rawResponseText, modelUsed } = await generateOpenAIContentWithFallback({
-      contents: userPromptWithContext,
-      systemInstruction: SYSTEM_PROMPT,
-      temperature: 0.2, // Low temperature for high fidelity to standards
-    });
+    // 4. Generate response from selected provider (Google Gemini or OpenAI)
+    let rawResponseText = "";
+    let modelUsed = "";
+
+    if (selectedProvider === "gemini") {
+      try {
+        const result = await generateGeminiContent({
+          contents: userPromptWithContext,
+          systemInstruction: SYSTEM_PROMPT,
+          temperature: 0.2, // Low temperature for high fidelity to standards
+        });
+        rawResponseText = result.text;
+        modelUsed = result.modelUsed;
+      } catch (geminiError: any) {
+        console.error("[Gemini API Chat Error]:", geminiError?.message || geminiError);
+        const durationSeconds = Number(((Date.now() - startTime) / 1000).toFixed(2));
+        res.status(502).json({
+          error: geminiError?.message || "Ошибка при генерации ответа через Google Gemini API.",
+          provider: "gemini",
+          modelUsed: (process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL).trim() || DEFAULT_GEMINI_MODEL,
+          durationSeconds,
+        });
+        return;
+      }
+    } else {
+      // Existing OpenAI flow with automatic model fallbacks
+      const result = await generateOpenAIContentWithFallback({
+        contents: userPromptWithContext,
+        systemInstruction: SYSTEM_PROMPT,
+        temperature: 0.2, // Low temperature for high fidelity to standards
+      });
+      rawResponseText = result.text;
+      modelUsed = result.modelUsed;
+    }
 
     const endTime = Date.now();
     const durationSeconds = Number(((endTime - startTime) / 1000).toFixed(2));
@@ -1103,6 +1232,7 @@ ${question}
       timestamp: nowFormatted,
       logId: logEntry.id,
       modelUsed,
+      provider: selectedProvider,
       knowledgeBaseStats: {
         totalRecords: sheetData.rows.length,
         sourceUrl: sheetData.sourceUrl,
@@ -1145,6 +1275,7 @@ ${question}
         timestamp: nowFormatted,
         logId: logEntry.id,
         modelUsed: "direct-standards-kb",
+        provider: "openai",
         knowledgeBaseStats: {
           totalRecords: sheetData.rows.length,
           sourceUrl: sheetData.sourceUrl,

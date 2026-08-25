@@ -7,10 +7,11 @@ import {
   Trash2,
   Save,
   Check,
-  AlertTriangle,
   RotateCcw,
+  Sparkles,
+  Bot,
 } from "lucide-react";
-import { AppSettings } from "../types";
+import { AppSettings, AIProvider } from "../types";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [sheetUrl, setSheetUrl] = useState(settings.sheetUrl);
   const [webhookUrl, setWebhookUrl] = useState(settings.webhookUrl);
+  const [provider, setProvider] = useState<AIProvider>(settings.provider || "openai");
   const [saved, setSaved] = useState(false);
 
   if (!isOpen) return null;
@@ -38,6 +40,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onSaveSettings({
       sheetUrl: sheetUrl.trim(),
       webhookUrl: webhookUrl.trim(),
+      provider,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -49,6 +52,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       "https://docs.google.com/spreadsheets/d/1Uf1g3BcPntwg2aPvzg4urTo4knwmxAAFvtlcxUA3BTc/edit?gid=0#gid=0";
     setSheetUrl(defaultSheet);
     setWebhookUrl(import.meta.env.VITE_GOOGLE_APPS_SCRIPT_WEBHOOK_URL || "");
+    setProvider("openai");
   };
 
   return (
@@ -65,7 +69,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 Настройки подключения и интеграций
               </h2>
               <p className="text-xs text-slate-500">
-                Управление источником базы знаний и Webhook логирования
+                Управление AI-моделью, источником базы знаний и Webhook логирования
               </p>
             </div>
           </div>
@@ -80,6 +84,50 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* Form */}
         <form onSubmit={handleSave} className="p-6 space-y-5">
+          {/* Model provider choice */}
+          <div className="space-y-2">
+            <label className="block text-xs font-semibold text-slate-800">
+              Модель для генерации ответов:
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setProvider("openai")}
+                className={`p-3 rounded-lg border text-left transition flex items-start gap-2.5 ${
+                  provider === "openai"
+                    ? "border-[#004b93] bg-[#004b93]/5 ring-1 ring-[#004b93]"
+                    : "border-slate-200 hover:border-slate-300 bg-white"
+                }`}
+              >
+                <Bot className="w-4 h-4 text-[#004b93] shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-xs font-semibold text-slate-800">OpenAI</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    Основная языковая модель с каскадным переключением
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setProvider("gemini")}
+                className={`p-3 rounded-lg border text-left transition flex items-start gap-2.5 ${
+                  provider === "gemini"
+                    ? "border-[#004b93] bg-[#004b93]/5 ring-1 ring-[#004b93]"
+                    : "border-slate-200 hover:border-slate-300 bg-white"
+                }`}
+              >
+                <Sparkles className="w-4 h-4 text-[#004b93] shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-xs font-semibold text-slate-800">Google Gemini</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    Генерация через Google Gemini API (GEMINI_MODEL)
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+
           {/* Sheet URL input */}
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-slate-800 flex items-center gap-1.5">

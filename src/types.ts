@@ -1,3 +1,5 @@
+export type AIProvider = "openai" | "gemini";
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
@@ -8,6 +10,8 @@ export interface Message {
   durationSeconds?: number;
   logId?: string;
   error?: boolean;
+  provider?: AIProvider;
+  modelUsed?: string;
 }
 
 export interface ChatSession {
@@ -42,4 +46,5 @@ export interface LogItem {
 export interface AppSettings {
   sheetUrl: string;
   webhookUrl: string;
+  provider?: AIProvider;
 }
