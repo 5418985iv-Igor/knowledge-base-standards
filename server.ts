@@ -95,18 +95,27 @@ const SYSTEM_PROMPT = `
 Лучше честно сообщить, что информации недостаточно, чем дать предположительный или выдуманный ответ.`;
 
 // Generate OpenAI content with rapid model fallback across supported models:
-// Default: gpt-5.6-luna, Fallback 1: gpt-5-nano, Fallback 2: gpt-4o-mini
+// Default: gpt-5.6-luna, Fallback 1: gpt-5-nano, Fallback 2: gpt-4o-mini, Fallback 3: gpt-4o
 async function generateOpenAIContentWithFallback(params: {
   contents: string;
   systemInstruction: string;
   temperature?: number;
 }) {
-  const defaultModel = process.env.OPENAI_DEFAULT_MODEL || "gpt-5.6-luna";
-  const fallbackModels = ["gpt-5-nano", "gpt-4o-mini"];
-  const modelsToTry = [
+  const defaultModel = (process.env.OPENAI_DEFAULT_MODEL || "gpt-5.6-luna").trim();
+  const fallbackModels = ["gpt-5-nano", "gpt-4o-mini", "gpt-4o"];
+  const candidateModels = [
     defaultModel,
     ...fallbackModels.filter((m) => m !== defaultModel),
   ];
+  // Ensure unique non-empty models
+  const modelsToTry = candidateModels.filter((m, idx, arr) => m && arr.indexOf(m) === idx);
+
+  const apiKey = (process.env.OPENAI_API_KEY || "").trim();
+  if (!apiKey || apiKey === "MY_OPENAI_API_KEY") {
+    console.warn(
+      "[OpenAI API] OPENAI_API_KEY is not configured or is a placeholder in .env. Falling back to standards matcher..."
+    );
+  }
 
   let lastError: any = null;
   const client = getOpenAIClient();
@@ -142,7 +151,8 @@ async function generateOpenAIContentWithFallback(params: {
   throw lastError;
 }
 
-// Fallback search directly in corporate standards if all AI endpoints are experiencing temporary spikes
+// Fallback search directly in corporate standards if AI endpoints are unreachable or API key is not configured.
+// Adheres strictly to the same SYSTEM_PROMPT rules (omits empty fields, direct clean answer).
 function getDirectStandardsAnswer(question: string, sheetData: SheetDataCache): {
   text: string;
   standardDescription: string;
@@ -176,18 +186,87 @@ function getDirectStandardsAnswer(question: string, sheetData: SheetDataCache): 
       bestMatch["Название стандарта"] ||
       bestMatch["Стандарт"] ||
       bestMatch["Раздел"] ||
-      Object.values(bestMatch)[1] ||
+      bestMatch["Блок/группа"] ||
+      Object.values(bestMatch)[0] ||
       "Стандарт компании";
-    
-    const details = Object.entries(bestMatch)
-      .map(([k, v]) => `**${k}**: ${v}`)
-      .join("\n\n");
 
-    const text = `На основании регламентов базы знаний компании:\n\n${details}`;
+    // Filter only meaningful, non-empty fields (ignoring null, undefined, "-", "отсутствует", "нет")
+    const filledEntries = Object.entries(bestMatch).filter(([_, val]) => {
+      if (!val) return false;
+      const v = String(val).trim().toLowerCase();
+      return (
+        v !== "" &&
+        v !== "отсутствует" &&
+        v !== "нет" &&
+        v !== "-" &&
+        v !== "null" &&
+        v !== "undefined"
+      );
+    });
+
+    const mainDesc =
+      bestMatch["Описание стандарта"] ||
+      bestMatch["Регламент и требования"] ||
+      bestMatch["Требования"] ||
+      bestMatch["Описание"] ||
+      "";
+
+    const deadline = bestMatch["Срок"] || bestMatch["Сроки и нормативы"] || "";
+    const responsible = bestMatch["Ответственный"] || bestMatch["Исполнитель"] || "";
+
+    let text = "";
+    if (mainDesc && mainDesc.trim()) {
+      text = mainDesc.trim();
+      const additionalPoints: string[] = [];
+      if (
+        deadline &&
+        deadline.trim() &&
+        !["отсутствует", "нет", "-", "null", "undefined"].includes(deadline.trim().toLowerCase())
+      ) {
+        additionalPoints.push(`- **Срок:** ${deadline.trim()}`);
+      }
+      if (
+        responsible &&
+        responsible.trim() &&
+        !["отсутствует", "нет", "-", "null", "undefined"].includes(responsible.trim().toLowerCase())
+      ) {
+        additionalPoints.push(`- **Ответственный:** ${responsible.trim()}`);
+      }
+
+      // Add any other non-empty fields without reproducing empty columns
+      filledEntries.forEach(([k, v]) => {
+        if (
+          ![
+            "Название стандарта",
+            "Стандарт",
+            "Раздел",
+            "Блок/группа",
+            "Описание стандарта",
+            "Регламент и требования",
+            "Требования",
+            "Описание",
+            "Срок",
+            "Сроки и нормативы",
+            "Ответственный",
+            "Исполнитель",
+          ].includes(k)
+        ) {
+          additionalPoints.push(`- **${k}:** ${String(v).trim()}`);
+        }
+      });
+
+      if (additionalPoints.length > 0) {
+        text += "\n\n" + additionalPoints.join("\n");
+      }
+    } else {
+      text = filledEntries
+        .map(([k, v]) => `- **${k}:** ${String(v).trim()}`)
+        .join("\n");
+    }
 
     return {
       text,
-      standardDescription: title.slice(0, 40),
+      standardDescription: title.slice(0, 50),
       foundInKB: "Да",
     };
   }
@@ -888,7 +967,7 @@ app.post("/api/chat", async (req, res) => {
     // 1. Fetch latest Google Sheet data
     const sheetData = await fetchSheetData(sheetUrl);
 
-    // 2. Format knowledge base table context
+    // 2. Format knowledge base table context with only non-empty, meaningful fields
     let formattedTableContext = "";
     if (sheetData.rows.length === 0) {
       formattedTableContext = "(Таблица пуста или данные не загрузились)";
@@ -896,27 +975,37 @@ app.post("/api/chat", async (req, res) => {
       formattedTableContext = sheetData.rows
         .map((row, idx) => {
           const rowEntries = Object.entries(row)
-            .map(([col, val]) => `${col}: ${val}`)
+            .filter(([_, val]) => {
+              if (!val) return false;
+              const v = String(val).trim().toLowerCase();
+              return (
+                v !== "" &&
+                v !== "отсутствует" &&
+                v !== "нет" &&
+                v !== "-" &&
+                v !== "null" &&
+                v !== "undefined"
+              );
+            })
+            .map(([col, val]) => `${col}: ${String(val).trim()}`)
             .join(" | ");
-          return `[Запись №${idx + 1}] ${rowEntries}`;
+          return rowEntries ? `[Запись №${idx + 1}] ${rowEntries}` : null;
         })
+        .filter(Boolean)
         .join("\n");
     }
 
-    // 3. User request prompt instruction according to prompt
-    const userPromptWithContext = `=== БЛОК: БАЗА ЗНАНИЙ СТАНДАРТОВ КОМПАНИИ (Google Таблица) ===
+    // 3. User request prompt instruction adhering strictly to SYSTEM_PROMPT
+    const userPromptWithContext = `=== БЛОК: «База знаний» (Google Таблица) ===
 Источник: ${sheetData.sourceUrl}
 Количество записей: ${sheetData.rows.length}
-Заголовки: ${sheetData.headers.join(", ")}
+Заголовки колонок: ${sheetData.headers.join(", ")}
 
-ДАННЫЕ ТАБЛИЦЫ:
+ФРАГМЕНТЫ БАЗЫ ЗНАНИЙ:
 ${formattedTableContext}
-=== КОНЕЦ БЛОКА БАЗЫ ЗНАНИЙ ===
+=== КОНЕЦ БЛОКА «База знаний» ===
 
-ИНСТРУКЦИЯ К ОТВЕТУ:
-ищи ответ в предоставленной таблице. Если точного ответа нет - формулируй рекомендацию на основе похожих записей. Если тема вообще не из таблицы - ответь честно что не нашел информацию.
-
-История предыдущего диалога (если есть):
+История диалога:
 ${
   Array.isArray(history) && history.length > 0
     ? history
@@ -929,11 +1018,12 @@ ${
 Вопрос сотрудника:
 ${question}
 
-В конце твоего ответа добавь невидимый для пользователя служебный блок метаданных строго в формате JSON в тегах <meta>...</meta> для автоматического логирования:
+ВАЖНО: Строго следуй всем правилам и формату из системной инструкции.
+В самом конце твоего ответа добавь служебный блок метаданных строго в формате JSON в тегах <meta>...</meta> для автоматического логирования:
 <meta>
 {
   "standardDescription": "Краткое название стандарта или темы (до 5-7 слов), если определено, иначе 'Не определен'",
-  "foundInKB": "Да" // одно из трех значений: "Да" (найдено точно), "Частично" (рекомендация на основе похожих записей), "Нет" (информации нет в базе)
+  "foundInKB": "Да" // одно из трех значений: "Да" (найдено точно), "Частично" (частично), "Нет" (информации нет в базе)
 }
 </meta>`;
 
