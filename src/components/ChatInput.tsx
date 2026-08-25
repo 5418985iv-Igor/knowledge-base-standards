@@ -48,24 +48,50 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   // Stop speech recognition helper
   const stopListening = useCallback(() => {
+    isListeningRef.current = false;
+    setIsListening(false);
     if (recognitionRef.current) {
       try {
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
         recognitionRef.current.stop();
       } catch (e) {
         // Ignore if already stopped
       }
+      recognitionRef.current = null;
     }
-    setIsListening(false);
+  }, []);
+
+  // Force abort speech recognition helper
+  const abortListening = useCallback(() => {
     isListeningRef.current = false;
+    setIsListening(false);
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.abort();
+      } catch (e) {
+        // Ignore if already stopped
+      }
+      recognitionRef.current = null;
+    }
   }, []);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      isListeningRef.current = false;
       if (recognitionRef.current) {
         try {
+          recognitionRef.current.onresult = null;
+          recognitionRef.current.onerror = null;
+          recognitionRef.current.onend = null;
           recognitionRef.current.abort();
         } catch {}
+        recognitionRef.current = null;
       }
     };
   }, []);
@@ -84,7 +110,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       return;
     }
 
-    if (isListening) {
+    if (isListening || isListeningRef.current) {
       stopListening();
       return;
     }
@@ -97,7 +123,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       recognition.maxAlternatives = 1;
 
       // Base text before speech recognition started
-      const baseText = text ? text.trim() + " " : "";
+      const baseText = text ? text.trim() : "";
 
       recognition.onstart = () => {
         setIsListening(true);
@@ -106,10 +132,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       };
 
       recognition.onresult = (event: any) => {
+        if (!isListeningRef.current) return;
+
         let interimTranscript = "";
         let finalTranscript = "";
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
+        for (let i = 0; i < event.results.length; ++i) {
           const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
             finalTranscript += transcript;
@@ -118,9 +146,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           }
         }
 
-        const currentSpoken = finalTranscript || interimTranscript;
-        if (currentSpoken) {
-          setText(baseText + currentSpoken);
+        const currentSpoken = (finalTranscript + interimTranscript).trim();
+        if (currentSpoken && isListeningRef.current) {
+          const combined = baseText ? `${baseText} ${currentSpoken}` : currentSpoken;
+          setText(combined);
         }
       };
 
@@ -160,16 +189,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (isListening) {
-      stopListening();
-    }
-    if (!text.trim() || isLoading) return;
 
-    onSendMessage(text.trim());
+    // Abort speech recognition immediately so in-flight speech events don't overwrite empty field
+    abortListening();
+
+    const trimmedText = text.trim();
+    if (!trimmedText || isLoading) return;
+
+    // Clear input state immediately
     setText("");
     if (textareaRef.current) {
+      textareaRef.current.value = "";
       textareaRef.current.style.height = "auto";
     }
+
+    onSendMessage(trimmedText);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
