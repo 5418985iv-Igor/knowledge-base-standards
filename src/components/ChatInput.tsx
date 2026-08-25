@@ -289,11 +289,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         </button>
       </form>
 
-      <div className="text-center mt-3">
-        <p className="text-[12px] text-[#94a3b8]">
-          Данные синхронизированы с Google Sheets • Голосовой ввод доступен
-        </p>
       </div>
-    </div>
   );
 };
