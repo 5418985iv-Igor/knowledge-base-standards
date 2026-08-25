@@ -40,7 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
           </h1>
           <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#004b93]/10 text-[#004b93] shrink-0">
             <Sparkles className="w-3 h-3 text-[#004b93]" />
-            Gemini Model
+            OpenAI Model
           </div>
         </div>
       </div>

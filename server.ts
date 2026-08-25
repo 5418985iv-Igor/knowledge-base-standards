@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -11,15 +11,17 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Initialize Gemini Client
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      "User-Agent": "aistudio-build",
-    },
-  },
-});
+// Initialize OpenAI Client
+let openaiClient: OpenAI | null = null;
+function getOpenAIClient(): OpenAI {
+  if (!openaiClient) {
+    const apiKey = process.env.OPENAI_API_KEY || "";
+    openaiClient = new OpenAI({
+      apiKey: apiKey,
+    });
+  }
+  return openaiClient;
+}
 
 const DEFAULT_SHEET_URL =
   process.env.DEFAULT_SHEET_URL ||
@@ -67,43 +69,46 @@ const SYSTEM_PROMPT = `Ты — корпоративный AI-ассистент
 Точность и соответствие базе знаний важнее полноты ответа.
 Лучше честно сообщить, что информации недостаточно, чем дать предположительный или выдуманный ответ.`;
 
-// Generate Gemini content with rapid model fallback across supported models
-async function generateGeminiContentWithFallback(params: {
+// Generate OpenAI content with rapid model fallback across supported models:
+// Default: gpt-5.6-luna, Fallback 1: gpt-5-nano, Fallback 2: gpt-4o-mini
+async function generateOpenAIContentWithFallback(params: {
   contents: string;
   systemInstruction: string;
   temperature?: number;
 }) {
-  const defaultModel = process.env.GEMINI_DEFAULT_MODEL || "gemini-3.7-flash";
+  const defaultModel = process.env.OPENAI_DEFAULT_MODEL || "gpt-5.6-luna";
+  const fallbackModels = ["gpt-5-nano", "gpt-4o-mini"];
   const modelsToTry = [
     defaultModel,
-    "gemini-flash-latest",
-    "gemini-3.1-flash-lite",
+    ...fallbackModels.filter((m) => m !== defaultModel),
   ];
 
   let lastError: any = null;
+  const client = getOpenAIClient();
 
   for (const model of modelsToTry) {
     try {
-      const callPromise = ai.models.generateContent({
+      const callPromise = client.chat.completions.create({
         model,
-        contents: params.contents,
-        config: {
-          systemInstruction: params.systemInstruction,
-          temperature: params.temperature ?? 0.2,
-        },
+        messages: [
+          { role: "system", content: params.systemInstruction },
+          { role: "user", content: params.contents },
+        ],
+        temperature: params.temperature ?? 0.2,
       });
 
-      // 8 second timeout per model attempt so we never hang
+      // 10 second timeout per model attempt so we never hang
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout calling model ${model}`)), 8000)
+        setTimeout(() => reject(new Error(`Timeout calling OpenAI model ${model}`)), 10000)
       );
 
       const response = await Promise.race([callPromise, timeoutPromise]);
-      return { response, modelUsed: model };
+      const text = response.choices?.[0]?.message?.content || "";
+      return { text, modelUsed: model };
     } catch (err: any) {
       lastError = err;
       const errMsg = err?.message || String(err);
-      console.warn(`[Gemini API] Model ${model} failed (${errMsg}). Switching to next fallback model...`);
+      console.warn(`[OpenAI API] Model ${model} failed (${errMsg}). Switching to next fallback model...`);
       // Immediately try the next model without waiting
       continue;
     }
@@ -661,7 +666,7 @@ app.get("/api/config", (_req, res) => {
       "",
     assistantName: process.env.VITE_ASSISTANT_NAME || "Крантик",
     appTitle: process.env.VITE_APP_TITLE || "База знаний стандартов компании",
-    geminiModel: process.env.GEMINI_DEFAULT_MODEL || "gemini-3.7-flash",
+    openaiModel: process.env.OPENAI_DEFAULT_MODEL || "gpt-5.6-luna",
   });
 });
 
@@ -844,7 +849,7 @@ app.post("/api/logs/test-webhook", async (req, res) => {
   }
 });
 
-// Chat endpoint with Gemini & Google Sheets RAG
+// Chat endpoint with OpenAI & Google Sheets RAG
 app.post("/api/chat", async (req, res) => {
   const startTime = Date.now();
   const { question, history = [], sheetUrl = DEFAULT_SHEET_URL, webhookUrl } = req.body;
@@ -907,8 +912,8 @@ ${question}
 }
 </meta>`;
 
-    // 4. Generate response from Gemini with automatic retry & fallback
-    const { response, modelUsed } = await generateGeminiContentWithFallback({
+    // 4. Generate response from OpenAI with automatic retry & fallback
+    const { text: rawResponseText, modelUsed } = await generateOpenAIContentWithFallback({
       contents: userPromptWithContext,
       systemInstruction: SYSTEM_PROMPT,
       temperature: 0.2, // Low temperature for high fidelity to standards
@@ -916,7 +921,7 @@ ${question}
 
     const endTime = Date.now();
     const durationSeconds = Number(((endTime - startTime) / 1000).toFixed(2));
-    const rawText = response.text || "В базе знаний нет информации, позволяющей однозначно ответить на этот вопрос.";
+    const rawText = rawResponseText || "В базе знаний нет информации, позволяющей однозначно ответить на этот вопрос.";
 
     // 5. Extract meta JSON and clean user response
     let standardDescription = "Общие стандарты";
