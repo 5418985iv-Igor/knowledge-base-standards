@@ -8,6 +8,7 @@ import {
   Pin,
   PinOff,
   ChevronLeft,
+  ArrowLeft,
 } from "lucide-react";
 import { ChatSession, KnowledgeBaseStats } from "../types";
 
@@ -249,6 +250,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {kbStats ? `${kbStats.rowsCount} регламентов загружено` : "Синхронизация..."}
             </span>
           </div>
+        </div>
+
+        {/* Back to Project Library Link */}
+        <div className="p-3 border-t border-slate-100">
+          <a
+            id="btn-sidebar-back-library"
+            href="https://vivonline.ru/"
+            className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium text-slate-600 hover:text-[#004b93] bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all shadow-2xs"
+            title="Перейти в библиотеку проектов vivonline.ru"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-slate-500" />
+            <span>Библиотека проектов</span>
+          </a>
         </div>
       </aside>
     </>

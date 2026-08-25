@@ -4,6 +4,7 @@ import {
   Sparkles,
   Bot,
   RefreshCw,
+  ArrowLeft,
 } from "lucide-react";
 import { AIProvider, KnowledgeBaseStats } from "../types";
 
@@ -47,6 +48,17 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* Back to Project Library Link */}
+        <a
+          id="btn-header-back-to-library"
+          href="https://vivonline.ru/"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-[#004b93] bg-slate-50 hover:bg-slate-100 border border-slate-200/80 transition-all shadow-2xs"
+          title="Вернуться в библиотеку проектов vivonline.ru"
+        >
+          <ArrowLeft className="w-3.5 h-3.5 text-slate-500" />
+          <span className="hidden sm:inline">В библиотеку проектов</span>
+        </a>
+
         {/* Model Selection Segmented Control */}
         <div
           id="model-selector-group"
