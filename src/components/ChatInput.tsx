@@ -294,7 +294,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 sm:px-12 pb-6 pt-2">
+    <div
+      className="w-full max-w-4xl mx-auto px-3 sm:px-12 pt-2 pb-3 sm:pb-4"
+      style={{
+        paddingBottom: "max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px))",
+      }}
+    >
       {/* Speech error banner */}
       {speechError && (
         <div

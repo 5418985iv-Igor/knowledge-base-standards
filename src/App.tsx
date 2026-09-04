@@ -442,7 +442,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#f3f4f6] text-[#1e293b] antialiased font-sans">
+    <div className="flex h-full h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[#f3f4f6] text-[#1e293b] antialiased font-sans">
       {/* Left Sidebar */}
       <Sidebar
         sessions={sessions}
@@ -462,7 +462,7 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative bg-white">
+      <div className="flex-1 flex flex-col h-full min-h-0 min-w-0 overflow-hidden relative bg-white">
         {/* Top Header */}
         <Header
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -476,10 +476,10 @@ export default function App() {
         />
 
         {/* Chat Scroll Container */}
-        <main className="flex-1 overflow-y-auto custom-scrollbar flex flex-col justify-between">
+        <main className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
           {messages.length === 0 ? (
             /* Welcome / Empty State */
-            <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-12 max-w-3xl mx-auto text-center animate-in fade-in duration-300">
+            <div className="min-h-full flex flex-col items-center justify-center p-6 sm:p-12 max-w-3xl mx-auto text-center animate-in fade-in duration-300">
               <div className="w-14 h-14 rounded-lg bg-[#004b93] flex items-center justify-center text-white font-bold text-xl shadow-xs mb-5">
                 V
               </div>
@@ -538,13 +538,15 @@ export default function App() {
               <div ref={messagesEndRef} />
             </div>
           )}
+        </main>
 
-          {/* Bottom Chat Input */}
+        {/* Bottom Chat Input */}
+        <div className="shrink-0 bg-white border-t border-slate-100">
           <ChatInput
             onSendMessage={handleSendMessage}
             isLoading={isLoading}
           />
-        </main>
+        </div>
       </div>
 
       {/* Modals */}
