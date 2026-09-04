@@ -1,5 +1,11 @@
 export type AIProvider = "openai" | "gemini";
 
+export interface TokenUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
@@ -12,6 +18,22 @@ export interface Message {
   error?: boolean;
   provider?: AIProvider;
   modelUsed?: string;
+  tokens?: TokenUsage;
+}
+
+export interface ModelProtocolEntry {
+  id: string;
+  timestamp: string;
+  provider: AIProvider;
+  modelUsed: string;
+  question: string;
+  durationSeconds: number;
+  status: "success" | "error" | "fallback";
+  foundInKB?: "Да" | "Нет" | "Частично";
+  standardDescription?: string;
+  tokens?: TokenUsage;
+  answerSnippet?: string;
+  errorMessage?: string;
 }
 
 export interface ChatSession {

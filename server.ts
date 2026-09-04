@@ -376,7 +376,14 @@ async function generateOpenAIContentWithFallback(params: {
 
       const response = await Promise.race([callPromise, timeoutPromise]);
       const text = response.choices?.[0]?.message?.content || "";
-      return { text, modelUsed: model };
+      const tokens = response.usage
+        ? {
+            promptTokens: response.usage.prompt_tokens,
+            completionTokens: response.usage.completion_tokens,
+            totalTokens: response.usage.total_tokens,
+          }
+        : undefined;
+      return { text, modelUsed: model, tokens };
     } catch (err: any) {
       lastError = err;
       const errMsg = err?.message || String(err);
@@ -394,7 +401,11 @@ async function generateGeminiContent(params: {
   contents: string;
   systemInstruction: string;
   temperature?: number;
-}): Promise<{ text: string; modelUsed: string }> {
+}): Promise<{
+  text: string;
+  modelUsed: string;
+  tokens?: { promptTokens?: number; completionTokens?: number; totalTokens?: number };
+}> {
   const apiKey = (process.env.GEMINI_API_KEY || "").trim();
   if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
     throw new Error(
@@ -416,7 +427,14 @@ async function generateGeminiContent(params: {
     });
 
     const text = response.text || "";
-    return { text, modelUsed: model };
+    const tokens = response.usageMetadata
+      ? {
+          promptTokens: response.usageMetadata.promptTokenCount,
+          completionTokens: response.usageMetadata.candidatesTokenCount,
+          totalTokens: response.usageMetadata.totalTokenCount,
+        }
+      : undefined;
+    return { text, modelUsed: model, tokens };
   } catch (err: any) {
     const rawMsg = err?.message || String(err);
     console.error(`[Gemini API Error] (${model}):`, rawMsg);
@@ -1348,6 +1366,7 @@ ${question}
     // 4. Generate response from selected provider (Google Gemini or OpenAI)
     let rawResponseText = "";
     let modelUsed = "";
+    let modelTokens: { promptTokens?: number; completionTokens?: number; totalTokens?: number } | undefined = undefined;
 
     if (selectedProvider === "gemini") {
       try {
@@ -1358,6 +1377,7 @@ ${question}
         });
         rawResponseText = result.text;
         modelUsed = result.modelUsed;
+        modelTokens = result.tokens;
       } catch (geminiError: any) {
         console.error("[Gemini API Chat Error]:", geminiError?.message || geminiError);
         const durationSeconds = Number(((Date.now() - startTime) / 1000).toFixed(2));
@@ -1378,6 +1398,7 @@ ${question}
       });
       rawResponseText = result.text;
       modelUsed = result.modelUsed;
+      modelTokens = result.tokens;
     }
 
     const endTime = Date.now();
@@ -1450,6 +1471,7 @@ ${question}
       logId: logEntry.id,
       modelUsed,
       provider: selectedProvider,
+      tokens: modelTokens,
       knowledgeBaseStats: {
         totalRecords: sheetData.rows.length,
         sourceUrl: sheetData.sourceUrl,

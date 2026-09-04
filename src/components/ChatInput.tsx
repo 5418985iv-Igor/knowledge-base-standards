@@ -12,6 +12,44 @@ interface IWindow extends Window {
   webkitSpeechRecognition?: any;
 }
 
+/**
+ * Detect mobile devices (Android / iOS) where speech recognition and IME
+ * voice typing require specific configuration to avoid word duplication.
+ */
+const isMobileDevice = (): boolean => {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const isMobileUA =
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  const isTouch =
+    typeof navigator.maxTouchPoints === "number" && navigator.maxTouchPoints > 1;
+  return isMobileUA || (isTouch && /Macintosh|Linux/i.test(ua));
+};
+
+/**
+ * Deduplicates voice typing glitches where words are repeated either
+ * glued together without spaces (e.g. "блокировкаблокировка" -> "блокировка")
+ * or separated by whitespace (e.g. "блокировка блокировка" -> "блокировка").
+ */
+export function cleanVoiceDuplicates(input: string): string {
+  if (!input) return "";
+
+  // 1. Fix glued duplicate words (e.g. "блокировкаблокировка" -> "блокировка", "пользователейпользователей" -> "пользователей")
+  // Detects words where a sequence of 4+ letters/digits is repeated back-to-back
+  let cleaned = input.replace(
+    /(?<!\p{L})([\p{L}0-9]{4,})\1+(?!\p{L})/gui,
+    "$1"
+  );
+
+  // 2. Fix consecutive duplicate words separated by spaces (e.g. "блокировка блокировка" -> "блокировка")
+  cleaned = cleaned.replace(
+    /(?<!\p{L})([\p{L}0-9]{3,})(?:\s+\1)+(?!\p{L})/gui,
+    "$1"
+  );
+
+  return cleaned;
+}
+
 export const ChatInput: React.FC<ChatInputProps> = ({
   onSendMessage,
   isLoading,
@@ -116,10 +154,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
 
     try {
+      const isMobile = isMobileDevice();
+
       const recognition = new SpeechRecognitionClass();
       recognition.lang = "ru-RU";
-      recognition.continuous = true;
-      recognition.interimResults = true;
+      // Android Chrome has a known Chromium bug (issue 40272768) where interimResults: true
+      // emits duplicate intermediate results as finalized chunks, concatenating identical words
+      // together without spaces (e.g. "блокировкаблокировка пользователейпользователей").
+      // Disabling interimResults and continuous on mobile ensures clean, single-pass speech recognition.
+      recognition.continuous = !isMobile;
+      recognition.interimResults = !isMobile;
       recognition.maxAlternatives = 1;
 
       // Base text before speech recognition started
@@ -134,22 +178,57 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       recognition.onresult = (event: any) => {
         if (!isListeningRef.current) return;
 
-        let interimTranscript = "";
-        let finalTranscript = "";
+        // Collect and deduplicate speech segments from event.results
+        const segments: string[] = [];
 
         for (let i = 0; i < event.results.length; ++i) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript;
-          } else {
-            interimTranscript += transcript;
+          const item = event.results[i];
+          if (!item || !item[0]) continue;
+
+          const transcript = (item[0].transcript || "").trim();
+          if (!transcript) continue;
+
+          // Skip if exact duplicate of the previous segment
+          if (
+            segments.length > 0 &&
+            segments[segments.length - 1].toLowerCase() === transcript.toLowerCase()
+          ) {
+            continue;
           }
+
+          // If current transcript already starts with the previous segment, replace with the longer version
+          if (
+            segments.length > 0 &&
+            transcript.toLowerCase().startsWith(segments[segments.length - 1].toLowerCase())
+          ) {
+            segments[segments.length - 1] = transcript;
+            continue;
+          }
+
+          // If the previous segment already ends with this transcript, skip
+          if (
+            segments.length > 0 &&
+            segments[segments.length - 1].toLowerCase().endsWith(transcript.toLowerCase())
+          ) {
+            continue;
+          }
+
+          segments.push(transcript);
         }
 
-        const currentSpoken = (finalTranscript + interimTranscript).trim();
+        const rawSpoken = segments.join(" ").trim();
+        const currentSpoken = cleanVoiceDuplicates(rawSpoken);
+
         if (currentSpoken && isListeningRef.current) {
-          const combined = baseText ? `${baseText} ${currentSpoken}` : currentSpoken;
-          setText(combined);
+          let combined = currentSpoken;
+          if (baseText) {
+            if (currentSpoken.toLowerCase().startsWith(baseText.toLowerCase())) {
+              combined = currentSpoken;
+            } else {
+              combined = `${baseText} ${currentSpoken}`;
+            }
+          }
+          setText(cleanVoiceDuplicates(combined));
         }
       };
 
@@ -193,7 +272,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     // Abort speech recognition immediately so in-flight speech events don't overwrite empty field
     abortListening();
 
-    const trimmedText = text.trim();
+    const rawTrimmed = text.trim();
+    const trimmedText = cleanVoiceDuplicates(rawTrimmed).trim();
     if (!trimmedText || isLoading) return;
 
     // Clear input state immediately
@@ -265,7 +345,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           id="chat-textarea-input"
           ref={textareaRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            // Clean glued duplicate words immediately in case mobile keyboard voice input inserted them
+            const val = e.target.value;
+            const cleaned = val.replace(
+              /(?<!\p{L})([\p{L}0-9]{4,})\1+(?!\p{L})/gui,
+              "$1"
+            );
+            setText(cleaned);
+          }}
+          onBlur={() => {
+            setText((prev) => cleanVoiceDuplicates(prev));
+          }}
           onKeyDown={handleKeyDown}
           placeholder={
             isListening

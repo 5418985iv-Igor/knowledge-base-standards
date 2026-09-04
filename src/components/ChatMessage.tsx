@@ -8,6 +8,7 @@ import {
   VolumeX,
   Clock,
   Sparkles,
+  Bot,
   User,
   ShieldCheck,
   AlertCircle,
@@ -141,7 +142,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 
           {/* Bottom info & Actions */}
           <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100 text-xs text-[#94a3b8]">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               {message.durationSeconds !== undefined && (
                 <span className="flex items-center gap-1 text-[11px] text-[#64748b] font-mono">
                   <Clock className="w-3 h-3 text-[#94a3b8]" />
@@ -150,20 +151,36 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
               )}
               {message.provider && (
                 <span
-                  className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-sm bg-slate-100 text-slate-600"
+                  className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-md border ${
+                    message.provider === "gemini"
+                      ? "bg-purple-50 text-[#004b93] border-purple-200"
+                      : "bg-slate-100 text-slate-700 border-slate-200"
+                  }`}
                   title={message.modelUsed ? `Модель: ${message.modelUsed}` : undefined}
                 >
                   {message.provider === "gemini" ? (
-                    <>
-                      <Sparkles className="w-2.5 h-2.5 text-[#004b93]" />
-                      <span>Gemini</span>
-                    </>
+                    <Sparkles className="w-3 h-3 text-[#004b93]" />
                   ) : (
-                    <span>OpenAI</span>
+                    <Bot className="w-3 h-3 text-slate-600" />
                   )}
-                  {message.modelUsed && message.modelUsed !== "direct-standards-kb" && (
-                    <span className="text-slate-400 font-mono text-[9px]">({message.modelUsed})</span>
-                  )}
+                  <span>{message.provider === "gemini" ? "Gemini" : "OpenAI"}</span>
+                  {message.modelUsed && message.modelUsed !== "direct-standards-kb" ? (
+                    <span className="text-slate-500 font-mono text-[10px] font-normal">
+                      ({message.modelUsed})
+                    </span>
+                  ) : message.modelUsed === "direct-standards-kb" ? (
+                    <span className="text-amber-600 font-mono text-[10px] font-normal">
+                      (fallback)
+                    </span>
+                  ) : null}
+                </span>
+              )}
+              {message.tokens?.totalTokens !== undefined && (
+                <span
+                  className="text-[11px] text-[#64748b] font-mono hidden sm:inline-block"
+                  title={`Промпт: ${message.tokens.promptTokens || 0}, Ответ: ${message.tokens.completionTokens || 0}`}
+                >
+                  {message.tokens.totalTokens} ток.
                 </span>
               )}
               <span className="text-[11px] text-[#94a3b8]">{message.timestamp}</span>

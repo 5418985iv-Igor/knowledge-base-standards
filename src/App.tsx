@@ -6,12 +6,14 @@ import { ChatInput } from "./components/ChatInput";
 import { KnowledgeBaseModal } from "./components/KnowledgeBaseModal";
 import { LogsModal } from "./components/LogsModal";
 import { SettingsModal } from "./components/SettingsModal";
+import { ModelProtocolModal } from "./components/ModelProtocolModal";
 import {
   Message,
   ChatSession,
   KnowledgeBaseStats,
   AppSettings,
   AIProvider,
+  ModelProtocolEntry,
 } from "./types";
 import {
   FileSpreadsheet,
@@ -103,6 +105,10 @@ export default function App() {
   const [isKBModalOpen, setIsKBModalOpen] = useState(false);
   const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isProtocolModalOpen, setIsProtocolModalOpen] = useState(false);
+
+  // Model Protocol (in-memory, session-only)
+  const [modelProtocolLogs, setModelProtocolLogs] = useState<ModelProtocolEntry[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -331,7 +337,37 @@ export default function App() {
         logId: data.logId,
         provider: data.provider || provider,
         modelUsed: data.modelUsed,
+        tokens: data.tokens,
       };
+
+      // Append to session model protocol (in-memory only, no DB)
+      const nowFormatted =
+        data.timestamp ||
+        new Date().toLocaleString("ru-RU", {
+          timeZone: "Europe/Moscow",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+
+      const protocolEntry: ModelProtocolEntry = {
+        id: `prot_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        timestamp: nowFormatted,
+        provider: data.provider || provider,
+        modelUsed:
+          data.modelUsed || (provider === "gemini" ? "gemini-3.5-flash-lite" : "gpt-4o-mini"),
+        question: text.trim(),
+        durationSeconds: data.durationSeconds ?? 0,
+        status: data.modelUsed === "direct-standards-kb" ? "fallback" : "success",
+        foundInKB: data.foundInKB,
+        standardDescription: data.standardDescription,
+        tokens: data.tokens,
+        answerSnippet: data.answer,
+      };
+      setModelProtocolLogs((prev) => [protocolEntry, ...prev]);
 
       setSessions((prev) =>
         prev.map((s) =>
@@ -350,6 +386,29 @@ export default function App() {
       const errorText = isTimeout
         ? "Превышено время ожидания ответа от сервиса. Попробуйте повторить вопрос."
         : err.message || "Пожалуйста, проверьте соединение и настройки.";
+
+      const nowFormatted = new Date().toLocaleString("ru-RU", {
+        timeZone: "Europe/Moscow",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+
+      // Record error in session model protocol
+      const errProtocolEntry: ModelProtocolEntry = {
+        id: `prot_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        timestamp: nowFormatted,
+        provider: provider,
+        modelUsed: provider === "gemini" ? "gemini-3.5-flash-lite" : "gpt-4o-mini",
+        question: text.trim(),
+        durationSeconds: 0,
+        status: "error",
+        errorMessage: errorText,
+      };
+      setModelProtocolLogs((prev) => [errProtocolEntry, ...prev]);
 
       const errorMessage: Message = {
         id: `msg_err_${Date.now()}`,
@@ -398,6 +457,8 @@ export default function App() {
         onRefreshKB={() => fetchKnowledgeBase(true)}
         isOpen={isSidebarOpen}
         onToggleOpen={() => setIsSidebarOpen(!isSidebarOpen)}
+        onOpenModelProtocol={() => setIsProtocolModalOpen(true)}
+        protocolCount={modelProtocolLogs.length}
       />
 
       {/* Main Content Area */}
@@ -520,6 +581,13 @@ export default function App() {
           setIsSettingsModalOpen(false);
         }}
         onClearAllSessions={handleClearAllSessions}
+      />
+
+      <ModelProtocolModal
+        isOpen={isProtocolModalOpen}
+        onClose={() => setIsProtocolModalOpen(false)}
+        logs={modelProtocolLogs}
+        onClearLogs={() => setModelProtocolLogs([])}
       />
     </div>
   );

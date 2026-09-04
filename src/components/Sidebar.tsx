@@ -9,6 +9,7 @@ import {
   PinOff,
   ChevronLeft,
   ArrowLeft,
+  Cpu,
 } from "lucide-react";
 import { ChatSession, KnowledgeBaseStats } from "../types";
 
@@ -25,6 +26,8 @@ interface SidebarProps {
   onRefreshKB: () => void;
   isOpen: boolean;
   onToggleOpen: () => void;
+  onOpenModelProtocol?: () => void;
+  protocolCount?: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -39,6 +42,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onRefreshKB,
   isOpen,
   onToggleOpen,
+  onOpenModelProtocol,
+  protocolCount = 0,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -250,6 +255,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {kbStats ? `${kbStats.rowsCount} регламентов загружено` : "Синхронизация..."}
             </span>
           </div>
+        </div>
+
+        {/* Model Protocol Button - placed directly below Knowledge Base block */}
+        <div className="px-3 py-1">
+          <button
+            id="btn-model-protocol"
+            onClick={onOpenModelProtocol}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-slate-700 hover:text-[#004b93] bg-white hover:bg-blue-50/50 border border-slate-200 transition shadow-2xs group"
+            title="Открыть протокол использования моделей текущей сессии"
+          >
+            <div className="flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-[#004b93] group-hover:scale-105 transition-transform shrink-0" />
+              <span className="font-semibold text-slate-800 group-hover:text-[#004b93] transition-colors">
+                Протокол моделей
+              </span>
+            </div>
+            {protocolCount > 0 ? (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[#004b93]/10 text-[#004b93] border border-[#004b93]/20 font-mono">
+                {protocolCount}
+              </span>
+            ) : (
+              <span className="text-[10px] text-slate-400 font-medium">сессия</span>
+            )}
+          </button>
         </div>
 
         {/* Back to Project Library Link */}
