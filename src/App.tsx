@@ -442,7 +442,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-full h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[#f3f4f6] text-[#1e293b] antialiased font-sans">
+    <div className="fixed inset-0 flex flex-row w-full h-full overflow-hidden bg-[#f3f4f6] text-[#1e293b] antialiased font-sans">
       {/* Left Sidebar */}
       <Sidebar
         sessions={sessions}
@@ -479,24 +479,24 @@ export default function App() {
         <main className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
           {messages.length === 0 ? (
             /* Welcome / Empty State */
-            <div className="min-h-full flex flex-col items-center justify-center p-6 sm:p-12 max-w-3xl mx-auto text-center animate-in fade-in duration-300">
-              <div className="w-14 h-14 rounded-lg bg-[#004b93] flex items-center justify-center text-white font-bold text-xl shadow-xs mb-5">
+            <div className="min-h-full flex flex-col items-center justify-center p-4 sm:p-12 max-w-3xl mx-auto text-center animate-in fade-in duration-300">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-[#004b93] flex items-center justify-center text-white font-bold text-lg sm:text-xl shadow-xs mb-3 sm:mb-5">
                 V
               </div>
 
-              <h2 className="text-2xl font-bold text-[#1e293b] tracking-tight mb-2">
+              <h2 className="text-xl sm:text-2xl font-bold text-[#1e293b] tracking-tight mb-1.5 sm:mb-2">
                 {APP_TITLE}
               </h2>
-              <p className="text-sm text-[#475569] max-w-lg mb-8 leading-relaxed">
+              <p className="text-xs sm:text-sm text-[#475569] max-w-lg mb-4 sm:mb-8 leading-relaxed px-2">
                 Задайте вопрос по регламентам, процедурам и стандартам компании.
                 Ответы формируются строго на основании официальной базы знаний.
               </p>
 
               {/* Status Box */}
-              <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-lg p-4 shadow-2xs flex items-center justify-between text-left">
+              <div className="w-full max-w-md bg-slate-50 border border-slate-200 rounded-lg p-3 sm:p-4 shadow-2xs flex items-center justify-between text-left">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-md bg-white border border-slate-200 text-[#004b93] flex items-center justify-center shrink-0">
-                    <FileSpreadsheet className="w-5 h-5" />
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-md bg-white border border-slate-200 text-[#004b93] flex items-center justify-center shrink-0">
+                    <FileSpreadsheet className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <div>
                     <div className="text-xs font-semibold text-[#1e293b] flex items-center gap-2">
@@ -541,7 +541,7 @@ export default function App() {
         </main>
 
         {/* Bottom Chat Input */}
-        <div className="shrink-0 bg-white border-t border-slate-100">
+        <div className="shrink-0 bg-white border-t border-slate-100 z-10">
           <ChatInput
             onSendMessage={handleSendMessage}
             isLoading={isLoading}

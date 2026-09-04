@@ -12,8 +12,8 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Single default Gemini model definition
-const DEFAULT_GEMINI_MODEL = "gemini-3.7-flash";
+// Single default Gemini model definition (Gemini 3)
+const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
 
 // Initialize OpenAI Client
 let openaiClient: OpenAI | null = null;
@@ -360,14 +360,20 @@ async function generateOpenAIContentWithFallback(params: {
 
   for (const model of modelsToTry) {
     try {
-      const callPromise = client.chat.completions.create({
+      const requestPayload: any = {
         model,
         messages: [
           { role: "system", content: params.systemInstruction },
           { role: "user", content: params.contents },
         ],
-        temperature: params.temperature ?? 0.2,
-      });
+      };
+      // Models like gpt-5.6-luna and gpt-5-nano reject custom temperatures (such as 0.2)
+      // and only support the default value (1) or omitting the parameter entirely.
+      if (params.temperature !== undefined && params.temperature === 1) {
+        requestPayload.temperature = 1;
+      }
+
+      const callPromise = client.chat.completions.create(requestPayload);
 
       // 10 second timeout per model attempt so we never hang
       const timeoutPromise = new Promise<never>((_, reject) =>
@@ -417,13 +423,24 @@ async function generateGeminiContent(params: {
   const client = getGeminiClient();
 
   try {
+    const config: Record<string, any> = {
+      systemInstruction: params.systemInstruction,
+    };
+    // Google explicitly recommends omitting temperature or leaving default (1.0),
+    // especially for Gemini 3 and reasoning models to prevent reasoning degradation.
+    if (
+      params.temperature !== undefined &&
+      params.temperature !== 1.0 &&
+      !model.includes("gemini-3") &&
+      !model.includes("gemini-2.5")
+    ) {
+      config.temperature = params.temperature;
+    }
+
     const response = await client.models.generateContent({
       model,
       contents: params.contents,
-      config: {
-        systemInstruction: params.systemInstruction,
-        temperature: params.temperature ?? 0.2,
-      },
+      config,
     });
 
     const text = response.text || "";
@@ -1373,7 +1390,6 @@ ${question}
         const result = await generateGeminiContent({
           contents: userPromptWithContext,
           systemInstruction: SYSTEM_PROMPT,
-          temperature: 0.2, // Low temperature for high fidelity to standards
         });
         rawResponseText = result.text;
         modelUsed = result.modelUsed;
@@ -1394,7 +1410,6 @@ ${question}
       const result = await generateOpenAIContentWithFallback({
         contents: userPromptWithContext,
         systemInstruction: SYSTEM_PROMPT,
-        temperature: 0.2, // Low temperature for high fidelity to standards
       });
       rawResponseText = result.text;
       modelUsed = result.modelUsed;
